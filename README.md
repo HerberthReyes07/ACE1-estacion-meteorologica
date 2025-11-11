@@ -83,7 +83,8 @@ Este proyecto implementa una **estación meteorológica y de calidad del aire** 
 |:------------:|:---------------:|:-----------:|
 | TX1 (Pin 18) | D2 (GPIO4) | Datos seriales |
 | GND | GND | Tierra común |
-| 5V | VIN | Alimentación (opcional) |
+
+> ⚡ **Nota sobre Alimentación**: El NodeMCU ESP8266 se alimenta de forma **independiente** mediante su puerto **Micro-USB**. NO conectar 5V del Arduino al NodeMCU.
 
 ---
 

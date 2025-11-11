@@ -14,9 +14,9 @@
 #include <SoftwareSerial.h>
 
 // --- Configuración WiFi y Ubidots ---
-#define WIFI_SSID "Rony"
-#define WIFI_PASS "11394079"
-#define UBIDOTS_TOKEN "BBUS-bPS06WNm4Fjtdh1WOft3lbeReUmYaq"
+#define WIFI_SSID "TU_RED_WIFI"          // 👈 Cambia por tu red WiFi
+#define WIFI_PASS "TU_CONTRASEÑA_WIFI"   // 👈 Cambia por tu contraseña WiFi
+#define UBIDOTS_TOKEN "TU_TOKEN_UBIDOTS" // 👈 Obtén tu token desde Ubidots
 #define DEVICE_LABEL "arduino-estacion-meteorologica"
 #define MQTT_CLIENT_NAME "nodemcu-gateway"
 
