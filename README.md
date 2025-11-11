@@ -1,6 +1,6 @@
-# 🌡️ Estación Ambiental IoT con Arduino Mega & NodeMCU - Grupo #2
-
 <div align="center">
+
+# 🌡️ Estación Ambiental IoT con Arduino Mega & NodeMCU - Grupo #2
 
 ![Arduino](https://img.shields.io/badge/Arduino-00979D?style=for-the-badge&logo=Arduino&logoColor=white)
 ![ESP8266](https://img.shields.io/badge/ESP8266-E7352C?style=for-the-badge&logo=espressif&logoColor=white)
