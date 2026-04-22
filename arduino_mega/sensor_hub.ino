@@ -3,7 +3,7 @@
 #include <SoftwareSerial.h>
 
 // --- Versión del programa ---
-#define VERSION "v18.1.0 (Mega Sensor Hub - CORREGIDO)"
+#define VERSION "v18.2.0 (Mega Sensor Hub + MQ136 AOUT)"
 
 // --- Pines ---
 // Serial1 (Pins 18/19) se usa para enviar datos al NodeMCU.
@@ -13,6 +13,7 @@
 #define MQ7_PIN A0
 #define MQ135_PIN A1
 #define MQ131_PIN A2
+#define MQ136_PIN A4
 
 // --- Objetos ---
 SoftwareSerial pmsSerial(PMS_RX_PIN, PMS_TX_PIN);
@@ -30,7 +31,9 @@ bool lastPMSReadSuccess = false;
 // --- Variables de sensores ---
 float temperatura = 0.0, humedad = 0.0;
 float ppm_nh3 = 0.0, ppm_nox = 0.0, ppm_co2 = 0.0;
-int adc_mq7 = 0, adc_mq135 = 0, adc_mq131 = 0;
+float ppm_so2 = 0.0;
+
+int adc_mq7 = 0, adc_mq135 = 0, adc_mq131 = 0, adc_mq136 = 0;
 
 // --- Variables de PMS5003 ---
 struct PMSData
@@ -43,24 +46,28 @@ struct PMSData
 PMSData pmsData;
 
 // --- Buffer ---
-char dataBuffer[200]; // Buffer para la trama de datos a enviar al NodeMCU
+char dataBuffer[220]; // Buffer ampliado por nuevo sensor
 
 // --- Prototipos ---
 void sendDataToNodeMCU(float ppm_co, float ppm_o3);
 bool readDhtWithRetry();
 bool readPMSDataToGlobal();
 void calculateMQ135Gases(int adc_value);
+void calculateMQ136Gas(int adc_value);
 
 void setup()
 {
     Serial.begin(9600);
+
     // Inicialización: HARDWARE SERIAL 1 para NodeMCU (Pines 18, 19)
     Serial1.begin(9600);
+
     Serial.print(F("\n--- ARDUINO MEGA SENSOR HUB ("));
     Serial.print(F(VERSION));
     Serial.println(F(") ---"));
     Serial.println(F("Enviando datos a NodeMCU por Serial1 (9600 bps)"));
     Serial.println(F("CONEXION: TX1(Pin18)->NodeMCU D2, GND->GND"));
+
     readDhtWithRetry();
     pmsData.valid = false;
     prevSensorMillis = millis();
@@ -70,12 +77,14 @@ void setup()
 void loop()
 {
     unsigned long currentMillis = millis();
+
     // --- Lectura DHT (cada 3 segundos) ---
     if (currentMillis - prevDhtMillis >= DHT_READ_INTERVAL)
     {
         prevDhtMillis = currentMillis;
         dhtReadSuccess = readDhtWithRetry();
     }
+
     // --- Lectura sensores y envío (cada 30 segundos) ---
     if (currentMillis - prevSensorMillis >= SENSOR_INTERVAL)
     {
@@ -87,7 +96,10 @@ void loop()
         adc_mq7 = analogRead(MQ7_PIN);
         adc_mq135 = analogRead(MQ135_PIN);
         adc_mq131 = analogRead(MQ131_PIN);
+        adc_mq136 = analogRead(MQ136_PIN);
+
         calculateMQ135Gases(adc_mq135);
+        calculateMQ136Gas(adc_mq136);
 
         // Cálculo de CO y O3 para el envío
         float ppm_co = adc_mq7 * (5.0 / 1023.0) * 20.0;
@@ -103,10 +115,16 @@ void loop()
         // 3. Envío de datos al NodeMCU
         sendDataToNodeMCU(ppm_co, ppm_o3);
 
-        // 4. Log de sensores (incluido el PMS5003)
+        // 4. Log de sensores
+        Serial.print(F("MQ136 ADC: "));
+        Serial.print(adc_mq136);
+        Serial.print(F(" | SO2 estimado: "));
+        Serial.println(ppm_so2);
+
         Serial.print(F("Trama enviada: "));
         Serial.println(dataBuffer);
     }
+
     // Opcional: Reenvío de datos desde Serial al NodeMCU (para debug)
     if (Serial.available())
         Serial1.write(Serial.read());
@@ -117,12 +135,13 @@ void loop()
 /**
  * Empaqueta y envía todos los datos de sensores al NodeMCU a través de Serial1.
  * Formato de la trama (CSV):
- * T,H,CO,O3,MQ135_ADC,NH3,NOx,CO2,PM1,PM25,PM10
+ * T,H,CO,O3,MQ135_ADC,NH3,NOx,CO2,MQ136_ADC,SO2,PM1,PM25,PM10
  */
 void sendDataToNodeMCU(float ppm_co, float ppm_o3)
 {
     char t_str[8], h_str[8], co_str[8], o3_str[8];
-    char nh3_str[8], nox_str[8], co2_str[8];
+    char nh3_str[8], nox_str[8], co2_str[8], so2_str[8];
+
     dtostrf(temperatura, 4, 1, t_str);
     dtostrf(humedad, 4, 1, h_str);
     dtostrf(ppm_co, 4, 1, co_str);
@@ -130,13 +149,17 @@ void sendDataToNodeMCU(float ppm_co, float ppm_o3)
     dtostrf(ppm_nh3, 4, 1, nh3_str);
     dtostrf(ppm_nox, 4, 1, nox_str);
     dtostrf(ppm_co2, 5, 1, co2_str);
+    dtostrf(ppm_so2, 5, 1, so2_str);
 
     int pm1 = pmsData.valid ? pmsData.pm1_0 : 0;
     int pm25 = pmsData.valid ? pmsData.pm2_5 : 0;
     int pm10 = pmsData.valid ? pmsData.pm10_0 : 0;
-    sprintf(dataBuffer, "%s,%s,%s,%s,%d,%s,%s,%s,%d,%d,%d",
-            t_str, h_str, co_str, o3_str, adc_mq135,
-            nh3_str, nox_str, co2_str, pm1, pm25, pm10);
+
+    sprintf(dataBuffer, "%s,%s,%s,%s,%d,%s,%s,%s,%d,%s,%d,%d,%d",
+            t_str, h_str, co_str, o3_str,
+            adc_mq135, nh3_str, nox_str, co2_str,
+            adc_mq136, so2_str,
+            pm1, pm25, pm10);
 
     Serial1.println(dataBuffer);
 }
@@ -151,8 +174,10 @@ bool readPMSDataToGlobal()
     uint8_t rx_buffer[32];
     int index = 0;
     bool success = false;
+
     while (pmsSerial.available())
         pmsSerial.read();
+
     while (millis() - startTime < timeout && !success)
     {
         while (pmsSerial.available())
@@ -193,12 +218,15 @@ bool readPMSDataToGlobal()
         }
         delay(10);
     }
+
     pmsSerial.end();
     delay(10);
+
     if (!success)
     {
         pmsData.valid = false;
     }
+
     return success;
 }
 
@@ -210,6 +238,7 @@ bool readDhtWithRetry()
         {
             humedad = dht.getHumidity();
             temperatura = dht.getTemperature();
+
             if (temperatura > -40 && temperatura < 80 && humedad >= 0 && humedad <= 100)
             {
                 return true;
@@ -226,4 +255,13 @@ void calculateMQ135Gases(int adc_value)
     ppm_nh3 = constrain(voltaje * 10.0, 0, 200);
     ppm_nox = constrain(voltaje * 15.0, 0, 300);
     ppm_co2 = constrain(350.0 + (voltaje * 1000.0), 350, 10000);
+}
+
+void calculateMQ136Gas(int adc_value)
+{
+    float voltaje = adc_value * (5.0 / 1023.0);
+
+    // Estimación simple de SO2 basada en voltaje.
+    // Ajustable más adelante si hacen calibración real.
+    ppm_so2 = constrain(voltaje * 20.0, 0, 200);
 }

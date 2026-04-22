@@ -27,7 +27,7 @@ Este proyecto implementa una **estación meteorológica y de calidad del aire** 
 ✨ **Monitoreo Multi-Sensor**
 - 📊 Temperatura y humedad (DHT11)
 - 💨 Material particulado PM1.0, PM2.5, PM10 (PMS5003)
-- ☠️ Gases peligrosos: CO, O₃, NH₃, NOₓ, CO₂
+- ☠️ Gases peligrosos: CO, O₃, NH₃, NOₓ, CO₂, SO₂
 - 📡 Transmisión inalámbrica a la nube
 
 🚀 **Tecnologías Implementadas**
@@ -49,10 +49,10 @@ Este proyecto implementa una **estación meteorológica y de calidad del aire** 
 │  │   Pin4   │  │ Pin12/13 │  │   A0     │  │   A1     │     │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘     │
 │                                                             │
-│  ┌──────────┐        ┌──────────────────────┐               │
-│  │  MQ131   │   -->  │  Procesamiento de    │               │
-│  │   A2     │        │  datos y formateo    │               │
-│  └──────────┘        └──────────────────────┘               │
+│  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐       │
+│  │  MQ131   │  │  MQ136   │  │  Procesamiento de    │       │
+│  │   A2     │  │   A4     │  │  datos y formateo    │       │
+│  └──────────┘  └──────────┘  └──────────────────────┘       │
 │                              ║                              │
 │                              ║ Serial1 (TX1/Pin18)          │
 │                              ║ 9600 baud                    │
@@ -88,7 +88,7 @@ Este proyecto implementa una **estación meteorológica y de calidad del aire** 
 
 ---
 
-## � Estructura del Proyecto
+## 📁 Estructura del Proyecto
 
 ```
 estacion_ambiental/
@@ -101,7 +101,7 @@ estacion_ambiental/
 
 ---
 
-## �🚀 Instalación
+## 🚀 Instalación
 
 ### 📦 Parte 1: Configuración del NodeMCU (ESP8266)
 
@@ -200,6 +200,11 @@ Las siguientes librerías son necesarias para el correcto funcionamiento del pro
 - **Rango**: 10-1000 ppb
 - **Gas detectado**: Ozono troposférico
 
+### 🧪 MQ136 - Dióxido de Azufre (SO₂)
+- **Pin**: A4 (Arduino Mega)
+- **Gas detectado**: SO₂
+- **Aplicación**: Estimación simple de concentración basada en voltaje analógico
+
 ---
 
 ## ⚙️ Configuración
@@ -210,7 +215,7 @@ Edita el archivo `nodemcu_esp8266/wifi_gateway.ino`:
 
 ```cpp
 #define WIFI_SSID "TU_RED_WIFI"      // 👈 Cambia esto
-#define WIFI_PASS "TU_CONTRASEÑA"    // 👈 Cambia esto
+#define WIFI_PASS "TU_CONTRASEÑA_WIFI"    // 👈 Cambia esto
 ```
 
 ### 🔑 Token de Ubidots
@@ -218,8 +223,8 @@ Edita el archivo `nodemcu_esp8266/wifi_gateway.ino`:
 En el mismo archivo, actualiza tu token:
 
 ```cpp
-#define UBIDOTS_TOKEN "TU_TOKEN_AQUI"  // 👈 Obtén tu token desde Ubidots
-#define DEVICE_LABEL "arduino-estacion-meteorologica"
+#define UBIDOTS_TOKEN "TU_TOKEN_UBIDOTS"  // 👈 Obtén tu token desde Ubidots
+#define DEVICE_LABEL "estacion-meto"
 ```
 
 > 📝 **Nota**: Obtén tu token desde [Ubidots](https://ubidots.com/) → Mi Perfil → API Credentials
@@ -239,15 +244,15 @@ Puedes ajustar la frecuencia de lectura en `arduino_mega/sensor_hub.ino`:
 
 ### Trama Serial (Mega → NodeMCU)
 
-Formato CSV con 11 campos:
+Formato CSV con 13 campos:
 
 ```
-T,H,CO,O3,MQ135_ADC,NH3,NOx,CO2,PM1,PM25,PM10
+T,H,CO,O3,MQ135_ADC,NH3,NOx,CO2,MQ136_ADC,SO2,PM1,PM25,PM10
 ```
 
 **Ejemplo**:
 ```
-25.3,65.2,12.5,8.3,512,15.2,22.8,425.5,10,25,45
+25.3,65.2,12.5,8.3,512,15.2,22.8,425.5,498,9.7,10,25,45
 ```
 
 ### Payload MQTT (NodeMCU → Ubidots)
@@ -262,6 +267,8 @@ T,H,CO,O3,MQ135_ADC,NH3,NOx,CO2,PM1,PM25,PM10
   "nh3": 15.2,
   "nox": 22.8,
   "co2": 425.5,
+   "mq136_adc": 498,
+   "so2": 9.7,
   "pm1": 10,
   "pm25": 25,
   "pm10": 45
@@ -279,12 +286,12 @@ T,H,CO,O3,MQ135_ADC,NH3,NOx,CO2,PM1,PM25,PM10
 
 Verás logs como:
 ```
---- ARDUINO MEGA SENSOR HUB (v18.1.0) ---
+--- ARDUINO MEGA SENSOR HUB (v18.2.0 (Mega Sensor Hub + MQ136 AOUT)) ---
 Enviando datos a NodeMCU por Serial1 (9600 bps)
 
 --- Ciclo de Lectura y Envío ---
 Leyendo datos del sensor PMS5003...
-Trama enviada: 25.3,65.2,12.5,8.3,512,15.2,22.8,425.5,10,25,45
+Trama enviada: 25.3,65.2,12.5,8.3,512,15.2,22.8,425.5,498,9.7,10,25,45
 ```
 
 ### 📡 Monitor Serial - NodeMCU
@@ -294,13 +301,13 @@ Trama enviada: 25.3,65.2,12.5,8.3,512,15.2,22.8,425.5,10,25,45
 
 Verás logs como:
 ```
---- NodeMCU Ubidots Gateway v2.0 ---
+--- NodeMCU Ubidots Gateway v2.1 (MQ136 integrado) ---
 WiFi Conectado! IP: 192.168.1.105
 
 [RX] Trama CSV recibida del Mega: 25.3,65.2,12.5...
 --- DATOS PARSEADOS EN NODEMCU ---
-Parseo exitoso (11 campos encontrados).
-[TX] Datos MQTT enviados a: /v1.6/devices/arduino-estacion-meteorologica
+Parseo exitoso (13 campos encontrados).
+[TX] Datos MQTT enviados a: /v1.6/devices/estacion-meto
 ```
 
 ---
@@ -309,8 +316,8 @@ Parseo exitoso (11 campos encontrados).
 
 | Componente | Versión | Fecha |
 |:-----------|:--------|:------|
-| Arduino Mega Firmware | v18.1.0 | Enero 2025 |
-| NodeMCU Gateway | v2.0 | Enero 2025 |
+| Arduino Mega Firmware | v18.2.0 | Enero 2025 |
+| NodeMCU Gateway | v2.1 | Enero 2025 |
 | Protocolo de Comunicación | CSV v1.0 | - |
 
 ---
